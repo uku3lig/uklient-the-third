@@ -61,6 +61,9 @@ async fn main() -> Result<()> {
         println!("NO PID? no bitches");
     }
 
+    process.wait_with_output().await?;
+    println!("Goodbye!");
+
     Ok(())
 }
 
