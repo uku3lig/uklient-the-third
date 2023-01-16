@@ -1,0 +1,17 @@
+[package]
+name = "uklient-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1.0"
+# TODO use dedalus only
+theseus = { git = "https://github.com/uku3lig/theseus" }
+daedalus = "0.1.17"
+java-locator = "0.1"
+webbrowser = "0.8"
+tokio = "1.24"
+url = "2.3"
+home = "0.5"
