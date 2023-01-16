@@ -1659,6 +1659,8 @@ dependencies = [
  "daedalus",
  "home",
  "java-locator",
+ "serde",
+ "serde_json",
  "theseus",
  "thiserror",
  "tokio",

@@ -15,3 +15,5 @@ webbrowser = "0.8"
 tokio = "1.24"
 url = "2.3"
 home = "0.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

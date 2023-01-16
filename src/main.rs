@@ -1,3 +1,6 @@
+use crate::UklientError::MetaError;
+use daedalus::modded::LoaderVersion;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use theseus::auth::Credentials;
@@ -11,6 +14,8 @@ use tokio::sync::oneshot;
 
 type Result<T> = std::result::Result<T, UklientError>;
 
+const META_URL: &str = "https://meta.fabricmc.net/v2";
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let java_name = if cfg!(windows) { "javaw" } else { "java" };
@@ -18,7 +23,6 @@ async fn main() -> Result<()> {
     java_path.push(java_name);
 
     println!("Found Java: {:?}", java_path);
-
     let java = JavaSettings {
         install: Some(java_path),
         extra_arguments: None,
@@ -26,15 +30,17 @@ async fn main() -> Result<()> {
 
     let path = PathBuf::from("/home/leo/.uklient");
     fs::create_dir_all(&path)?;
-
     println!("Created directory {:?}", path);
+
+    let fabric_version = get_latest_fabric().await?;
+    println!("Found fabric version {}", fabric_version.id);
 
     let mc_profile = Profile {
         path: path.clone(),
         metadata: ProfileMetadata {
             name: "uku's pvp modpack".into(),
             loader: ModLoader::Fabric,
-            loader_version: None,
+            loader_version: None, // fabric version isn't used here, because theseus doesn't want to launch it :3
             game_version: "1.19.3".into(),
             format_version: 1,
             icon: None,
@@ -50,11 +56,9 @@ async fn main() -> Result<()> {
 
     profile::add(mc_profile).await?;
     let cred = connect_account().await?;
-
     println!("Connected account {}", cred.username);
 
     let process = profile::run(&path, &cred).await?;
-
     if let Some(pid) = process.id() {
         println!("PID: {}", pid);
     } else {
@@ -65,6 +69,27 @@ async fn main() -> Result<()> {
     println!("Goodbye!");
 
     Ok(())
+}
+
+async fn get_latest_fabric() -> Result<LoaderVersion> {
+    let downloaded = daedalus::download_file(
+        format!("{}/versions/", META_URL).as_str(),
+        None,
+    )
+    .await?;
+    let versions: FabricVersions = serde_json::from_slice(&downloaded)?;
+    let latest = versions.loader.get(0).ok_or(MetaError("fabric"))?.clone();
+    let latest_mc = versions.game.get(0).ok_or(MetaError("minecraft"))?.clone();
+    let manifest_url = format!(
+        "{}/versions/loader/{}/{}/profile/json",
+        META_URL, latest_mc.version, latest.version
+    );
+
+    Ok(LoaderVersion {
+        id: latest.version,
+        stable: latest.stable,
+        url: manifest_url,
+    })
 }
 
 async fn connect_account() -> Result<Credentials> {
@@ -89,4 +114,43 @@ enum UklientError {
     JoinError(#[from] tokio::task::JoinError),
     #[error("theseus error")]
     TheseusError(#[from] theseus::Error),
+    #[error("daedalus error")]
+    DaedalusError(#[from] daedalus::Error),
+    #[error("json error")]
+    JsonError(#[from] serde_json::Error),
+    #[error("no {0} versions were found")]
+    MetaError(&'static str),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+/// Versions of fabric components
+struct FabricVersions {
+    /// Versions of Minecraft that fabric supports
+    pub game: Vec<FabricGameVersion>,
+    /// Available versions of the fabric loader
+    pub loader: Vec<FabricLoaderVersion>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+/// A version of Minecraft that fabric supports
+struct FabricGameVersion {
+    /// The version number of the game
+    pub version: String,
+    /// Whether the Minecraft version is stable or not
+    pub stable: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+/// A version of the fabric loader
+struct FabricLoaderVersion {
+    /// The separator to get the build number
+    pub separator: String,
+    /// The build number
+    pub build: u32,
+    /// The maven artifact
+    pub maven: String,
+    /// The version number of the fabric loader
+    pub version: String,
+    /// Whether the loader is stable or not
+    pub stable: bool,
 }
