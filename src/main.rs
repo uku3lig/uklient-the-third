@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 use theseus::auth::Credentials;
-use theseus::data::{JavaSettings, MemorySettings, ModLoader, ProfileMetadata, WindowSize};
+use theseus::data::{
+    JavaSettings, MemorySettings, ModLoader, ProfileMetadata, WindowSize,
+};
 use theseus::profile;
 use theseus::profile::Profile;
 use thiserror::Error;
@@ -83,5 +85,5 @@ enum UklientError {
     #[error("tokio join error")]
     JoinError(#[from] tokio::task::JoinError),
     #[error("theseus error")]
-    TheseusError(#[from] theseus::Error)
+    TheseusError(#[from] theseus::Error),
 }
