@@ -24,7 +24,8 @@ use tokio::sync::oneshot;
 
 type Result<T> = std::result::Result<T, UklientError>;
 
-const META_URL: &str = "https://meta.fabricmc.net/v2";
+const FABRIC_META_URL: &str = "https://meta.fabricmc.net/v2";
+const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -51,17 +52,21 @@ async fn main() -> Result<()> {
         println!("Created directory {:?}", path);
     }
 
-    let game_version = "1.19.2".to_string();
-    let loader = ModLoader::Fabric;
-    let fabric_version = get_latest_fabric(&game_version).await?;
-    println!("Found fabric version {}", fabric_version.id);
+    let game_version = "1.19.3".to_string();
+    let loader = ModLoader::Quilt;
+    let loader_version = if loader == ModLoader::Quilt {
+        get_latest_quilt(&game_version).await
+    } else {
+        get_latest_fabric(&game_version).await
+    }?;
+    println!("Found {} version {}", loader, loader_version.id);
 
     let mc_profile = Profile {
         path: base_path.clone(),
         metadata: ProfileMetadata {
             name: "uku's pvp modpack".into(),
             loader,
-            loader_version: Some(fabric_version),
+            loader_version: Some(loader_version),
             game_version: game_version.clone(),
             format_version: 1,
             icon: None,
@@ -147,16 +152,38 @@ async fn install_modpack(
 
 async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
     let downloaded = daedalus::download_file(
-        format!("{}/versions/", META_URL).as_str(),
+        format!("{}/versions/loader/{}", FABRIC_META_URL, mc_version).as_str(),
         None,
     )
     .await?;
-    let versions: FabricVersions = serde_json::from_slice(&downloaded)?;
-    let latest = versions.loader.get(0).ok_or(MetaError("fabric"))?.clone();
-    // let latest_mc = versions.game.get(0).ok_or(MetaError("minecraft"))?.clone();
+
+    let versions: Vec<LoaderVersionElement> = serde_json::from_slice(&downloaded)?;
+    let latest = versions.get(0).ok_or(MetaError("fabric"))?.loader.clone();
     let manifest_url = format!(
         "{}/versions/loader/{}/{}/profile/json",
-        META_URL, mc_version, latest.version
+        FABRIC_META_URL, mc_version, latest.version
+    );
+
+    Ok(LoaderVersion {
+        id: latest.version,
+        stable: latest.stable,
+        url: manifest_url,
+    })
+}
+
+async fn get_latest_quilt(mc_version: &String) -> Result<LoaderVersion> {
+    let downloaded = daedalus::download_file(
+        format!("{}/versions/loader/{}", QUILT_META_URL, mc_version).as_str(),
+        None,
+    )
+    .await?;
+
+    let versions: Vec<LoaderVersionElement> =
+        serde_json::from_slice(&downloaded)?;
+    let latest = versions.get(0).ok_or(MetaError("quilt"))?.loader.clone();
+    let manifest_url = format!(
+        "{}/versions/loader/{}/{}/profile/json",
+        QUILT_META_URL, mc_version, latest.version
     );
 
     Ok(LoaderVersion {
@@ -205,17 +232,8 @@ enum UklientError {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-/// Versions of fabric components
-struct FabricVersions {
-    /// Versions of Minecraft that fabric supports
-    pub game: Vec<FabricGameVersion>,
-    /// Available versions of the fabric loader
-    pub loader: Vec<FabricLoaderVersion>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 /// A version of Minecraft that fabric supports
-struct FabricGameVersion {
+struct GameVersion {
     /// The version number of the game
     pub version: String,
     /// Whether the Minecraft version is stable or not
@@ -223,8 +241,12 @@ struct FabricGameVersion {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-/// A version of the fabric loader
-struct FabricLoaderVersion {
+struct LoaderVersionElement {
+    pub loader: MetaLoaderVersion,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct MetaLoaderVersion {
     /// The separator to get the build number
     pub separator: String,
     /// The build number
@@ -234,5 +256,6 @@ struct FabricLoaderVersion {
     /// The version number of the fabric loader
     pub version: String,
     /// Whether the loader is stable or not
+    #[serde(default="bool::default")]
     pub stable: bool,
 }
