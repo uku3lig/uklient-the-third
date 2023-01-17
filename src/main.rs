@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
             .iter()
             .collect();
 
-    println!("Found Java: {:?}", java_path);
+    println!("Found Java: {java_path:?}");
     let java = JavaSettings {
         install: Some(java_path),
         extra_arguments: None,
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
     ];
     for path in paths {
         fs::create_dir_all(path)?;
-        println!("Created directory {:?}", path);
+        println!("Created directory {path:?}");
     }
 
     let game_version = "1.19.3".to_string();
@@ -89,7 +89,7 @@ async fn main() -> Result<()> {
 
     let process = profile::run(&base_path, &cred).await?;
     if let Some(pid) = process.id() {
-        println!("PID: {}", pid);
+        println!("PID: {pid}");
     } else {
         println!("NO PID? no bitches");
     }
@@ -101,7 +101,7 @@ async fn main() -> Result<()> {
 }
 
 async fn install_modpack(
-    base_path: &PathBuf,
+    base_path: &Path,
     game_version: String,
     loader: ModLoader,
 ) -> Result<()> {
@@ -114,8 +114,7 @@ async fn install_modpack(
         .await?
         .iter()
         .filter(|v| v.game_versions.contains(&game_version))
-        .filter(|v| v.loaders.iter().any(|s| s.eq_ignore_ascii_case(&loader)))
-        .next()
+        .find(|v| v.loaders.iter().any(|s| s.eq_ignore_ascii_case(&loader)))
         .ok_or(MetaError("modpack"))?
         .clone();
 
@@ -142,7 +141,7 @@ async fn install_modpack(
         let downloadable: Downloadable = file.into();
 
         let (size, name) = downloadable
-            .download(&client, base_path.as_path(), |_| {})
+            .download(&client, base_path, |_| {})
             .await?;
         println!("Downloaded {name} (size: {size})");
     }
@@ -152,7 +151,7 @@ async fn install_modpack(
 
 async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
     let downloaded = daedalus::download_file(
-        format!("{}/versions/loader/{}", FABRIC_META_URL, mc_version).as_str(),
+        format!("{FABRIC_META_URL}/versions/loader/{mc_version}").as_str(),
         None,
     )
         .await?;
@@ -173,7 +172,7 @@ async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
 
 async fn get_latest_quilt(mc_version: &String) -> Result<LoaderVersion> {
     let downloaded = daedalus::download_file(
-        format!("{}/versions/loader/{}", QUILT_META_URL, mc_version).as_str(),
+        format!("{QUILT_META_URL}/versions/loader/{mc_version}").as_str(),
         None,
     )
         .await?;
@@ -223,6 +222,7 @@ async fn connect_account() -> Result<Credentials> {
 }
 
 #[derive(Error, Debug)]
+#[allow(clippy::enum_variant_names)]
 enum UklientError {
     #[error("Java could not be located")]
     JavaLocateError(#[from] java_locator::errors::JavaLocatorError),
