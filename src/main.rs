@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
         metadata: ProfileMetadata {
             name: "uku's pvp modpack".into(),
             loader: ModLoader::Fabric,
-            loader_version: None, // fabric version isn't used here, because theseus doesn't want to launch it :3
+            loader_version: Some(fabric_version),
             game_version: "1.19.3".into(),
             format_version: 1,
             icon: None,

@@ -1424,7 +1424,7 @@ dependencies = [
 [[package]]
 name = "theseus"
 version = "0.1.0"
-source = "git+https://github.com/uku3lig/theseus#bbaab3ed808aaa76d555ed78bda64e929cdd077c"
+source = "git+https://github.com/uku3lig/theseus#febe57a05d5bb3de803b3ad66e947de4988168c2"
 dependencies = [
  "async-tungstenite",
  "bincode",
