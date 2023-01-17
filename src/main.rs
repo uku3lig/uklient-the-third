@@ -1,9 +1,18 @@
-use crate::UklientError::{MetaError, NoHomeError};
+use crate::UklientError::{MetaError, ZipError};
 use daedalus::modded::LoaderVersion;
+use ferinth::Ferinth;
+
+use libium::modpack::modrinth::{deser_metadata, read_metadata_file};
+use libium::upgrade::Downloadable;
+
+use libium::version_ext::VersionExt;
+use libium::HOME;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::ops::Index;
+use std::fs::File;
 use std::path::PathBuf;
+
+use reqwest::Client;
 use theseus::auth::Credentials;
 use theseus::data::{
     JavaSettings, MemorySettings, ModLoader, ProfileMetadata, WindowSize,
@@ -20,7 +29,10 @@ const META_URL: &str = "https://meta.fabricmc.net/v2";
 #[tokio::main]
 async fn main() -> Result<()> {
     let java_name = if cfg!(windows) { "javaw" } else { "java" };
-    let java_path: PathBuf = [java_locator::locate_file(java_name)?, java_name.to_string()].iter().collect();
+    let java_path: PathBuf =
+        [java_locator::locate_file(java_name)?, java_name.to_string()]
+            .iter()
+            .collect();
 
     println!("Found Java: {:?}", java_path);
     let java = JavaSettings {
@@ -28,20 +40,29 @@ async fn main() -> Result<()> {
         extra_arguments: None,
     };
 
-    let base_path: PathBuf = [home::home_dir().ok_or(NoHomeError)?, ".uklient".into()].iter().collect();
-    fs::create_dir_all(&base_path)?;
-    println!("Created directory {:?}", base_path);
+    let base_path: PathBuf = [HOME.clone(), ".uklient".into()].iter().collect();
+    let paths = [
+        &base_path,
+        &[base_path.clone(), "mods".into()].iter().collect(),
+    ];
 
-    let fabric_version = get_latest_fabric().await?;
+    for path in paths {
+        fs::create_dir_all(path)?;
+        println!("Created directory {:?}", path);
+    }
+
+    let game_version = "1.19.2".to_string();
+    let loader = ModLoader::Fabric;
+    let fabric_version = get_latest_fabric(&game_version).await?;
     println!("Found fabric version {}", fabric_version.id);
 
     let mc_profile = Profile {
         path: base_path.clone(),
         metadata: ProfileMetadata {
             name: "uku's pvp modpack".into(),
-            loader: ModLoader::Fabric,
+            loader,
             loader_version: Some(fabric_version),
-            game_version: "1.19.3".into(),
+            game_version: game_version.clone(),
             format_version: 1,
             icon: None,
         },
@@ -58,6 +79,9 @@ async fn main() -> Result<()> {
     let cred = connect_account().await?;
     println!("Connected account {}", cred.username);
 
+    install_modpack(&base_path, game_version, loader).await?;
+    println!("Sucessfully installed modpack");
+
     let process = profile::run(&base_path, &cred).await?;
     if let Some(pid) = process.id() {
         println!("PID: {}", pid);
@@ -71,7 +95,57 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn get_latest_fabric() -> Result<LoaderVersion> {
+async fn install_modpack(
+    base_path: &PathBuf,
+    game_version: String,
+    loader: ModLoader,
+) -> Result<()> {
+    let modrinth = Ferinth::default();
+    let client = Client::new();
+    let loader = format!("{loader}");
+
+    let version = modrinth
+        .list_versions("JR0bkFKa")
+        .await?
+        .iter()
+        .filter(|v| v.game_versions.contains(&game_version))
+        .filter(|v| v.loaders.iter().any(|s| s.eq_ignore_ascii_case(&loader)))
+        .next()
+        .ok_or(MetaError("modpack"))?
+        .clone();
+
+    println!("Found modpack version {}", version.name);
+
+    let mut version_file: Downloadable = version.into_version_file().into();
+    version_file.output = version_file.filename().into();
+
+    let cache_dir = HOME.join(".config").join("uklient").join(".cache");
+    fs::create_dir_all(&cache_dir)?;
+    let modpack_path = cache_dir.join(&version_file.output);
+    if !modpack_path.exists() {
+        version_file
+            .download(&Client::new(), &cache_dir, |_| {})
+            .await?;
+    }
+
+    let modpack_file = File::open(modpack_path)?;
+    let metadata = deser_metadata(
+        &read_metadata_file(&modpack_file).map_err(|_| ZipError)?,
+    )?;
+
+    for file in metadata.files {
+        let downloadable: Downloadable = file.into();
+
+        let (size, name) = downloadable
+            .download(&client, base_path.as_path(), |_| {})
+            .await?;
+        println!("Downloaded {name} (size: {size})");
+    }
+
+    Ok(())
+}
+
+async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
     let downloaded = daedalus::download_file(
         format!("{}/versions/", META_URL).as_str(),
         None,
@@ -79,10 +153,10 @@ async fn get_latest_fabric() -> Result<LoaderVersion> {
     .await?;
     let versions: FabricVersions = serde_json::from_slice(&downloaded)?;
     let latest = versions.loader.get(0).ok_or(MetaError("fabric"))?.clone();
-    let latest_mc = versions.game.get(0).ok_or(MetaError("minecraft"))?.clone();
+    // let latest_mc = versions.game.get(0).ok_or(MetaError("minecraft"))?.clone();
     let manifest_url = format!(
         "{}/versions/loader/{}/{}/profile/json",
-        META_URL, latest_mc.version, latest.version
+        META_URL, mc_version, latest.version
     );
 
     Ok(LoaderVersion {
@@ -118,10 +192,16 @@ enum UklientError {
     DaedalusError(#[from] daedalus::Error),
     #[error("json error")]
     JsonError(#[from] serde_json::Error),
+    #[error("libium error")]
+    LibiumError(#[from] libium::upgrade::Error),
+    #[error("libium modpack error")]
+    LibiumModpackError(#[from] libium::upgrade::modpack_downloadable::Error),
+    #[error("ferinth error")]
+    FerinthError(#[from] ferinth::Error),
+    #[error("zip error")]
+    ZipError,
     #[error("no {0} versions were found")]
     MetaError(&'static str),
-    #[error("no home dir was found")]
-    NoHomeError,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
