@@ -10,7 +10,8 @@ use libium::HOME;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
-use std::path::PathBuf;
+use std::io::{BufReader, BufWriter};
+use std::path::{Path, PathBuf};
 
 use reqwest::Client;
 use theseus::auth::Credentials;
@@ -46,7 +47,6 @@ async fn main() -> Result<()> {
         &base_path,
         &[base_path.clone(), "mods".into()].iter().collect(),
     ];
-
     for path in paths {
         fs::create_dir_all(path)?;
         println!("Created directory {:?}", path);
@@ -155,7 +155,7 @@ async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
         format!("{}/versions/loader/{}", FABRIC_META_URL, mc_version).as_str(),
         None,
     )
-    .await?;
+        .await?;
 
     let versions: Vec<LoaderVersionElement> = serde_json::from_slice(&downloaded)?;
     let latest = versions.get(0).ok_or(MetaError("fabric"))?.loader.clone();
@@ -176,7 +176,7 @@ async fn get_latest_quilt(mc_version: &String) -> Result<LoaderVersion> {
         format!("{}/versions/loader/{}", QUILT_META_URL, mc_version).as_str(),
         None,
     )
-    .await?;
+        .await?;
 
     let versions: Vec<LoaderVersionElement> =
         serde_json::from_slice(&downloaded)?;
@@ -194,13 +194,32 @@ async fn get_latest_quilt(mc_version: &String) -> Result<LoaderVersion> {
 }
 
 async fn connect_account() -> Result<Credentials> {
+    let credentials_path = Path::new("./credentials.json");
+
+    if credentials_path.try_exists()? {
+        let credentials: Result<Credentials> = {
+            let file = File::open(credentials_path)?;
+            let creds: Credentials = serde_json::from_reader(BufReader::new(file))?;
+
+            Ok(theseus::auth::refresh(creds.id, true).await?)
+        };
+
+        if let Ok(creds) = credentials {
+            return Ok(creds);
+        }
+    }
+
     let (tx, rx) = oneshot::channel::<url::Url>();
     let flow = tokio::spawn(theseus::auth::authenticate(tx));
 
     let url = rx.await?;
     webbrowser::open(url.as_str())?;
 
-    Ok(flow.await??)
+    let creds = flow.await??;
+    let file = File::create(credentials_path)?;
+    serde_json::to_writer(BufWriter::new(file), &creds)?;
+
+    Ok(creds)
 }
 
 #[derive(Error, Debug)]
@@ -256,6 +275,6 @@ struct MetaLoaderVersion {
     /// The version number of the fabric loader
     pub version: String,
     /// Whether the loader is stable or not
-    #[serde(default="bool::default")]
+    #[serde(default = "bool::default")]
     pub stable: bool,
 }
