@@ -1,15 +1,17 @@
-use crate::UklientError::{MetaError, ZipError};
+use crate::UklientError::{MetaError, UnknownTypeError, ZipError};
 use daedalus::modded::LoaderVersion;
 use ferinth::Ferinth;
+use std::ffi::OsString;
 
 use libium::modpack::modrinth::{deser_metadata, read_metadata_file};
 use libium::upgrade::Downloadable;
 
+use libium::modpack::extract_zip;
 use libium::version_ext::VersionExt;
 use libium::HOME;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::fs::File;
+use std::fs::{read_dir, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
@@ -31,7 +33,8 @@ const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
 #[tokio::main]
 async fn main() -> Result<()> {
     let java_name = if cfg!(windows) { "javaw" } else { "java" };
-    let java_path = PathBuf::from(java_locator::locate_file(java_name)?).join(java_name);
+    let java_path =
+        PathBuf::from(java_locator::locate_file(java_name)?).join(java_name);
 
     println!("Found Java: {java_path:?}");
     let java = JavaSettings {
@@ -40,10 +43,7 @@ async fn main() -> Result<()> {
     };
 
     let base_path: PathBuf = HOME.join(".uklient");
-    let paths = [
-        &base_path,
-        &base_path.join("mods")
-    ];
+    let paths = [&base_path, &base_path.join("mods")];
     for path in paths {
         fs::create_dir_all(path)?;
         println!("Created directory {path:?}");
@@ -98,7 +98,7 @@ async fn main() -> Result<()> {
 }
 
 async fn install_modpack(
-    base_path: &Path,
+    output_dir: &Path,
     game_version: String,
     loader: ModLoader,
 ) -> Result<()> {
@@ -122,6 +122,7 @@ async fn install_modpack(
 
     let cache_dir = HOME.join(".config").join("uklient").join(".cache");
     fs::create_dir_all(&cache_dir)?;
+
     let modpack_path = cache_dir.join(&version_file.output);
     if !modpack_path.exists() {
         version_file
@@ -134,16 +135,47 @@ async fn install_modpack(
         &read_metadata_file(&modpack_file).map_err(|_| ZipError)?,
     )?;
 
+    let tmp_dir = HOME
+        .join(".config")
+        .join("uklient")
+        .join(".tmp")
+        .join(metadata.name);
+    extract_zip(modpack_file, &tmp_dir)
+        .await
+        .map_err(|_| ZipError)?;
+    let overrides = read_overrides(&tmp_dir.join("overrides"))?;
+
     for file in metadata.files {
         let downloadable: Downloadable = file.into();
 
-        let (size, name) = downloadable
-            .download(&client, base_path, |_| {})
-            .await?;
+        let (size, name) =
+            downloadable.download(&client, output_dir, |_| {}).await?;
         println!("Downloaded {name} (size: {size})");
     }
 
+    for over in overrides {
+        if over.1.is_file() {
+            fs::copy(over.1, output_dir.join(&over.0))?;
+        } else if over.1.is_dir() {
+            let mut copy_options = fs_extra::dir::CopyOptions::new();
+            copy_options.overwrite = true;
+            fs_extra::dir::copy(over.1, output_dir, &copy_options)?;
+        } else {
+            return Err(UnknownTypeError(over.0));
+        }
+        println!("Installed {}", over.0.to_string_lossy());
+    }
+
     Ok(())
+}
+
+fn read_overrides(directory: &Path) -> Result<Vec<(OsString, PathBuf)>> {
+    let mut to_install = Vec::new();
+    for file in read_dir(directory)? {
+        let file = file?;
+        to_install.push((file.file_name(), file.path()));
+    }
+    Ok(to_install)
 }
 
 async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
@@ -151,9 +183,10 @@ async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
         format!("{FABRIC_META_URL}/versions/loader/{mc_version}").as_str(),
         None,
     )
-        .await?;
+    .await?;
 
-    let versions: Vec<LoaderVersionElement> = serde_json::from_slice(&downloaded)?;
+    let versions: Vec<LoaderVersionElement> =
+        serde_json::from_slice(&downloaded)?;
     let latest = versions.get(0).ok_or(MetaError("fabric"))?.loader.clone();
     let manifest_url = format!(
         "{}/versions/loader/{}/{}/profile/json",
@@ -172,7 +205,7 @@ async fn get_latest_quilt(mc_version: &String) -> Result<LoaderVersion> {
         format!("{QUILT_META_URL}/versions/loader/{mc_version}").as_str(),
         None,
     )
-        .await?;
+    .await?;
 
     let versions: Vec<LoaderVersionElement> =
         serde_json::from_slice(&downloaded)?;
@@ -195,7 +228,8 @@ async fn connect_account() -> Result<Credentials> {
     if credentials_path.try_exists()? {
         let credentials: Result<Credentials> = {
             let file = File::open(credentials_path)?;
-            let creds: Credentials = serde_json::from_reader(BufReader::new(file))?;
+            let creds: Credentials =
+                serde_json::from_reader(BufReader::new(file))?;
 
             Ok(theseus::auth::refresh(creds.id, true).await?)
         };
@@ -227,6 +261,8 @@ enum UklientError {
     RecvError(#[from] oneshot::error::RecvError),
     #[error("browser error :3")]
     IoError(#[from] std::io::Error),
+    #[error("fs_extra error")]
+    FsExtraError(#[from] fs_extra::error::Error),
     #[error("tokio join error")]
     JoinError(#[from] tokio::task::JoinError),
     #[error("theseus error")]
@@ -245,6 +281,8 @@ enum UklientError {
     ZipError,
     #[error("no {0} versions were found")]
     MetaError(&'static str),
+    #[error("unknown type")]
+    UnknownTypeError(OsString),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
