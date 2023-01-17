@@ -1,7 +1,8 @@
-use crate::UklientError::MetaError;
+use crate::UklientError::{MetaError, NoHomeError};
 use daedalus::modded::LoaderVersion;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::ops::Index;
 use std::path::PathBuf;
 use theseus::auth::Credentials;
 use theseus::data::{
@@ -19,8 +20,7 @@ const META_URL: &str = "https://meta.fabricmc.net/v2";
 #[tokio::main]
 async fn main() -> Result<()> {
     let java_name = if cfg!(windows) { "javaw" } else { "java" };
-    let mut java_path = PathBuf::from(java_locator::locate_file(java_name)?);
-    java_path.push(java_name);
+    let java_path: PathBuf = [java_locator::locate_file(java_name)?, java_name.to_string()].iter().collect();
 
     println!("Found Java: {:?}", java_path);
     let java = JavaSettings {
@@ -28,15 +28,15 @@ async fn main() -> Result<()> {
         extra_arguments: None,
     };
 
-    let path = PathBuf::from("/home/leo/.uklient");
-    fs::create_dir_all(&path)?;
-    println!("Created directory {:?}", path);
+    let base_path: PathBuf = [home::home_dir().ok_or(NoHomeError)?, ".uklient".into()].iter().collect();
+    fs::create_dir_all(&base_path)?;
+    println!("Created directory {:?}", base_path);
 
     let fabric_version = get_latest_fabric().await?;
     println!("Found fabric version {}", fabric_version.id);
 
     let mc_profile = Profile {
-        path: path.clone(),
+        path: base_path.clone(),
         metadata: ProfileMetadata {
             name: "uku's pvp modpack".into(),
             loader: ModLoader::Fabric,
@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
     let cred = connect_account().await?;
     println!("Connected account {}", cred.username);
 
-    let process = profile::run(&path, &cred).await?;
+    let process = profile::run(&base_path, &cred).await?;
     if let Some(pid) = process.id() {
         println!("PID: {}", pid);
     } else {
@@ -120,6 +120,8 @@ enum UklientError {
     JsonError(#[from] serde_json::Error),
     #[error("no {0} versions were found")]
     MetaError(&'static str),
+    #[error("no home dir was found")]
+    NoHomeError,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
