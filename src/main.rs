@@ -31,10 +31,7 @@ const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
 #[tokio::main]
 async fn main() -> Result<()> {
     let java_name = if cfg!(windows) { "javaw" } else { "java" };
-    let java_path: PathBuf =
-        [java_locator::locate_file(java_name)?, java_name.to_string()]
-            .iter()
-            .collect();
+    let java_path = PathBuf::from(java_locator::locate_file(java_name)?).join(java_name);
 
     println!("Found Java: {java_path:?}");
     let java = JavaSettings {
@@ -42,10 +39,10 @@ async fn main() -> Result<()> {
         extra_arguments: None,
     };
 
-    let base_path: PathBuf = [HOME.clone(), ".uklient".into()].iter().collect();
+    let base_path: PathBuf = HOME.join(".uklient");
     let paths = [
         &base_path,
-        &[base_path.clone(), "mods".into()].iter().collect(),
+        &base_path.join("mods")
     ];
     for path in paths {
         fs::create_dir_all(path)?;
