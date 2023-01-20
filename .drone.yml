@@ -4,6 +4,6 @@ name: build
 
 steps:
   - name: build
-    image: rustlang/rust:nightly-alpine
+    image: rustlang/rust:nightly
     commands:
       - cargo +nightly build
