@@ -25,6 +25,7 @@ use tokio::{
     sync::Semaphore,
     task::JoinSet,
 };
+use tracing::{info, warn};
 
 // code BLATANTLY stolen from ferium
 
@@ -44,7 +45,7 @@ pub async fn install_modpack(
         .ok_or(MetaError("modpack"))?
         .clone();
 
-    println!("Found modpack version {}", version.name);
+    info!("Found modpack version {}", version.name);
 
     let mut version_file: Downloadable = version.into_version_file().into();
     version_file.output = version_file.filename().into();
@@ -88,7 +89,7 @@ pub async fn install_modpack(
     .await?;
 
     if to_download.is_empty() && overrides.is_empty() {
-        println!("Everything is up to date!");
+        info!("Everything is up to date!");
         Ok(())
     } else {
         download(output_dir.into(), to_download, overrides).await
@@ -111,7 +112,7 @@ async fn clean(
 ) -> Result<()> {
     let dupes = find_dupes_by_key(to_download, Downloadable::filename);
     if !dupes.is_empty() {
-        println!(
+        warn!(
                 "Warning: {} duplicate files were found {}. Remove the mod it belongs to",
                 dupes.len(),
                 dupes
@@ -174,7 +175,7 @@ async fn download(
         let client = client.clone();
         tasks.spawn(async move {
             let _permit = permit;
-            println!("Downloading {}", downloadable.filename());
+            info!("Downloading {}", downloadable.filename());
             downloadable.download(&client, &output_dir, |_| {}).await?;
             Ok::<(), UklientError>(())
         });
@@ -192,7 +193,7 @@ async fn download(
         } else {
             return Err(UnknownTypeError(installable.0));
         }
-        println!("Installed {}", installable.0.to_string_lossy());
+        info!("Installed {}", installable.0.to_string_lossy());
     }
 
     Ok(())

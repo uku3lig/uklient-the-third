@@ -3,6 +3,7 @@ mod modpack;
 use crate::UklientError::MetaError;
 use daedalus::modded::LoaderVersion;
 use std::ffi::OsString;
+use tracing::{debug, info, warn};
 
 use libium::HOME;
 use serde::{Deserialize, Serialize};
@@ -27,11 +28,13 @@ const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     let java_name = if cfg!(windows) { "javaw" } else { "java" };
     let java_path =
         PathBuf::from(java_locator::locate_file(java_name)?).join(java_name);
 
-    println!("Found Java: {java_path:?}");
+    debug!("Found Java: {java_path:?}");
     let java = JavaSettings {
         install: Some(java_path),
         extra_arguments: None,
@@ -41,7 +44,7 @@ async fn main() -> Result<()> {
     let paths = [&base_path, &base_path.join("mods")];
     for path in paths {
         fs::create_dir_all(path)?;
-        println!("Created directory {path:?}");
+        debug!("Created directory {path:?}");
     }
 
     let game_version = "1.19.3".to_string();
@@ -51,7 +54,7 @@ async fn main() -> Result<()> {
     } else {
         get_latest_fabric(&game_version).await
     }?;
-    println!("Found {} version {}", loader, loader_version.id);
+    debug!("Found {} version {}", loader, loader_version.id);
 
     let mc_profile = Profile {
         path: base_path.clone(),
@@ -74,20 +77,20 @@ async fn main() -> Result<()> {
 
     profile::add(mc_profile).await?;
     let cred = connect_account().await?;
-    println!("Connected account {}", cred.username);
+    info!("Connected account {}", cred.username);
 
     modpack::install_modpack(&base_path, "JR0bkFKa", game_version).await?;
-    println!("Sucessfully installed modpack");
+    info!("Sucessfully installed modpack");
 
     let process = profile::run(&base_path, &cred).await?;
     if let Some(pid) = process.id() {
-        println!("PID: {pid}");
+        info!("PID: {pid}");
     } else {
-        println!("NO PID? no bitches");
+        warn!("NO PID? no bitches");
     }
 
     process.wait_with_output().await?;
-    println!("Goodbye!");
+    info!("Goodbye!");
 
     Ok(())
 }
