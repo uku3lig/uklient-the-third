@@ -1,21 +1,16 @@
-use crate::UklientError::{MetaError, UnknownTypeError, ZipError};
+mod modpack;
+
+use crate::UklientError::MetaError;
 use daedalus::modded::LoaderVersion;
-use ferinth::Ferinth;
 use std::ffi::OsString;
 
-use libium::modpack::modrinth::{deser_metadata, read_metadata_file};
-use libium::upgrade::Downloadable;
-
-use libium::modpack::extract_zip;
-use libium::version_ext::VersionExt;
 use libium::HOME;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::fs::{read_dir, File};
+use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
-use reqwest::Client;
 use theseus::auth::Credentials;
 use theseus::data::{
     JavaSettings, MemorySettings, ModLoader, ProfileMetadata, WindowSize,
@@ -81,7 +76,7 @@ async fn main() -> Result<()> {
     let cred = connect_account().await?;
     println!("Connected account {}", cred.username);
 
-    install_modpack(&base_path, game_version, loader).await?;
+    modpack::install_modpack(&base_path, "JR0bkFKa", game_version).await?;
     println!("Sucessfully installed modpack");
 
     let process = profile::run(&base_path, &cred).await?;
@@ -95,87 +90,6 @@ async fn main() -> Result<()> {
     println!("Goodbye!");
 
     Ok(())
-}
-
-async fn install_modpack(
-    output_dir: &Path,
-    game_version: String,
-    loader: ModLoader,
-) -> Result<()> {
-    let modrinth = Ferinth::default();
-    let client = Client::new();
-    let loader = format!("{loader}");
-
-    let version = modrinth
-        .list_versions("JR0bkFKa")
-        .await?
-        .iter()
-        .filter(|v| v.game_versions.contains(&game_version))
-        .find(|v| v.loaders.iter().any(|s| s.eq_ignore_ascii_case(&loader)))
-        .ok_or(MetaError("modpack"))?
-        .clone();
-
-    println!("Found modpack version {}", version.name);
-
-    let mut version_file: Downloadable = version.into_version_file().into();
-    version_file.output = version_file.filename().into();
-
-    let cache_dir = HOME.join(".config").join("uklient").join(".cache");
-    fs::create_dir_all(&cache_dir)?;
-
-    let modpack_path = cache_dir.join(&version_file.output);
-    if !modpack_path.exists() {
-        version_file
-            .download(&Client::new(), &cache_dir, |_| {})
-            .await?;
-    }
-
-    let modpack_file = File::open(modpack_path)?;
-    let metadata = deser_metadata(
-        &read_metadata_file(&modpack_file).map_err(|_| ZipError)?,
-    )?;
-
-    let tmp_dir = HOME
-        .join(".config")
-        .join("uklient")
-        .join(".tmp")
-        .join(metadata.name);
-    extract_zip(modpack_file, &tmp_dir)
-        .await
-        .map_err(|_| ZipError)?;
-    let overrides = read_overrides(&tmp_dir.join("overrides"))?;
-
-    for file in metadata.files {
-        let downloadable: Downloadable = file.into();
-
-        let (size, name) =
-            downloadable.download(&client, output_dir, |_| {}).await?;
-        println!("Downloaded {name} (size: {size})");
-    }
-
-    for over in overrides {
-        if over.1.is_file() {
-            fs::copy(over.1, output_dir.join(&over.0))?;
-        } else if over.1.is_dir() {
-            let mut copy_options = fs_extra::dir::CopyOptions::new();
-            copy_options.overwrite = true;
-            fs_extra::dir::copy(over.1, output_dir, &copy_options)?;
-        } else {
-            return Err(UnknownTypeError(over.0));
-        }
-        println!("Installed {}", over.0.to_string_lossy());
-    }
-
-    Ok(())
-}
-
-fn read_overrides(directory: &Path) -> Result<Vec<(OsString, PathBuf)>> {
-    let mut to_install = Vec::new();
-    for file in read_dir(directory)? {
-        let file = file?;
-        to_install.push((file.file_name(), file.path()));
-    }
-    Ok(to_install)
 }
 
 async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
@@ -254,7 +168,7 @@ async fn connect_account() -> Result<Credentials> {
 
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
-enum UklientError {
+pub enum UklientError {
     #[error("Java could not be located")]
     JavaLocateError(#[from] java_locator::errors::JavaLocatorError),
     #[error("tokio recv error")]
@@ -283,6 +197,8 @@ enum UklientError {
     MetaError(&'static str),
     #[error("unknown type")]
     UnknownTypeError(OsString),
+    #[error("acquire error")]
+    AcquireError(#[from] tokio::sync::AcquireError),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
