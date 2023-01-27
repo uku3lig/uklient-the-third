@@ -35,6 +35,7 @@ pub async fn get_metadata(
 ) -> Result<ProfileMetadata> {
     let modrinth = Ferinth::default();
 
+    let info = modrinth.get_project(id).await?;
     let versions = modrinth
         .list_versions_filtered(id, None, Some(&[game_version]), None)
         .await?;
@@ -46,7 +47,7 @@ pub async fn get_metadata(
         };
 
         Ok(ProfileMetadata {
-            name: meta.name.clone(),
+            name: info.title.clone(),
             loader: loader_info.loader,
             loader_version: Some(loader_info.version),
             game_version: game_version.into(),
