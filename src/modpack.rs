@@ -165,7 +165,7 @@ async fn clean(
     let dupes = find_dupes_by_key(to_download, Downloadable::filename);
     if !dupes.is_empty() {
         warn!(
-                "Warning: {} duplicate files were found {}. Remove the mod it belongs to",
+                "{} duplicate files were found {}. Remove the mod it belongs to",
                 dupes.len(),
                 dupes
                     .into_iter()
