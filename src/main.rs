@@ -1,6 +1,7 @@
 mod modpack;
 
 use crate::UklientError::MetaError;
+use crate::modpack::get_metadata;
 use daedalus::modded::LoaderVersion;
 use std::ffi::OsString;
 use tracing::{debug, info, warn};
@@ -14,7 +15,7 @@ use std::path::{Path, PathBuf};
 
 use theseus::auth::Credentials;
 use theseus::data::{
-    JavaSettings, MemorySettings, ModLoader, ProfileMetadata, WindowSize,
+    JavaSettings, MemorySettings, WindowSize,
 };
 use theseus::profile;
 use theseus::profile::Profile;
@@ -48,24 +49,12 @@ async fn main() -> Result<()> {
     }
 
     let game_version = "1.19.3".to_string();
-    let loader = ModLoader::Quilt;
-    let loader_version = if loader == ModLoader::Quilt {
-        get_latest_quilt(&game_version).await
-    } else {
-        get_latest_fabric(&game_version).await
-    }?;
-    debug!("Found {} version {}", loader, loader_version.id);
+    let metadata = get_metadata("JR0bkFKa", game_version.as_str()).await?;
+    debug!("Found {}", metadata.loader);
 
     let mc_profile = Profile {
         path: base_path.clone(),
-        metadata: ProfileMetadata {
-            name: "uku's pvp modpack".into(),
-            loader,
-            loader_version: Some(loader_version),
-            game_version: game_version.clone(),
-            format_version: 1,
-            icon: None,
-        },
+        metadata,
         java: Some(java),
         memory: Some(MemorySettings {
             maximum: (4 * 1024) as u32,
@@ -95,7 +84,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
+pub async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
     let downloaded = daedalus::download_file(
         format!("{FABRIC_META_URL}/versions/loader/{mc_version}").as_str(),
         None,
@@ -117,7 +106,7 @@ async fn get_latest_fabric(mc_version: &String) -> Result<LoaderVersion> {
     })
 }
 
-async fn get_latest_quilt(mc_version: &String) -> Result<LoaderVersion> {
+pub async fn get_latest_quilt(mc_version: &String) -> Result<LoaderVersion> {
     let downloaded = daedalus::download_file(
         format!("{QUILT_META_URL}/versions/loader/{mc_version}").as_str(),
         None,

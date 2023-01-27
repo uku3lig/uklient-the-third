@@ -1,5 +1,6 @@
 use crate::UklientError::{MetaError, UnknownTypeError, ZipError};
-use crate::{Result, UklientError};
+use crate::{get_latest_fabric, get_latest_quilt, Result, UklientError};
+use daedalus::modded::LoaderVersion;
 use ferinth::Ferinth;
 use fs_extra::{
     dir::{copy as copy_dir, CopyOptions as DirCopyOptions},
@@ -20,12 +21,64 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use theseus::prelude::{ModLoader, ProfileMetadata};
 use tokio::{
     fs::{copy, create_dir_all, remove_file},
     sync::Semaphore,
     task::JoinSet,
 };
 use tracing::{info, warn};
+
+pub async fn get_metadata(
+    id: &str,
+    game_version: &str,
+) -> Result<ProfileMetadata> {
+    let modrinth = Ferinth::default();
+
+    let versions = modrinth
+        .list_versions_filtered(id, None, Some(&[game_version]), None)
+        .await?;
+
+    if let Some(meta) = versions.first() {
+        let loader_info  = match meta.loaders.first() {
+            Some(l) => LoaderInfo::from(l, &game_version.into()).await?,
+            None => return Err(MetaError("loader not found")),
+        };
+
+        Ok(ProfileMetadata {
+            name: meta.name.clone(),
+            loader: loader_info.loader,
+            loader_version: Some(loader_info.version),
+            game_version: game_version.into(),
+            format_version: 1,
+            icon: None
+        })
+    } else {
+        Err(MetaError("modpack not found"))
+    }
+}
+
+#[derive(Debug)]
+struct LoaderInfo {
+    loader: ModLoader,
+    version: LoaderVersion,
+}
+
+impl LoaderInfo {
+    async fn from(value: &String, game_version: &String) -> Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "fabric" => Ok(Self {
+                loader: ModLoader::Fabric,
+                version: get_latest_fabric(game_version).await?,
+            }),
+            "quilt" => Ok(Self {
+                loader: ModLoader::Quilt,
+                version: get_latest_quilt(game_version).await?,
+            }),
+            _ => Err(MetaError("unknown loader")),
+        }
+    }
+}
 
 // code BLATANTLY stolen from ferium
 
@@ -35,7 +88,6 @@ pub async fn install_modpack(
     game_version: String,
 ) -> Result<()> {
     let modrinth = Ferinth::default();
-    let _client = Client::new();
 
     let version = modrinth
         .list_versions(id)
