@@ -41,7 +41,7 @@ pub async fn get_metadata(
         .await?;
 
     if let Some(meta) = versions.first() {
-        let loader_info  = match meta.loaders.first() {
+        let loader_info = match meta.loaders.first() {
             Some(l) => LoaderInfo::from(l, &game_version.into()).await?,
             None => return Err(MetaError("loader not found")),
         };
@@ -52,7 +52,7 @@ pub async fn get_metadata(
             loader_version: Some(loader_info.version),
             game_version: game_version.into(),
             format_version: 1,
-            icon: None
+            icon: None,
         })
     } else {
         Err(MetaError("modpack not found"))
@@ -166,12 +166,12 @@ async fn clean(
     let dupes = find_dupes_by_key(to_download, Downloadable::filename);
     if !dupes.is_empty() {
         warn!(
-                "{} duplicate files were found {}. Remove the mod it belongs to",
-                dupes.len(),
-                dupes
-                    .into_iter()
-                    .map(|i| to_download.swap_remove(i).filename())
-                    .format(", ")
+            "{} duplicate files were found {}. Remove the mod it belongs to",
+            dupes.len(),
+            dupes
+                .into_iter()
+                .map(|i| to_download.swap_remove(i).filename())
+                .format(", ")
         );
     }
     create_dir_all(directory.join(".old")).await?;

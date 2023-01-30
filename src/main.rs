@@ -1,7 +1,9 @@
+mod java;
 mod modpack;
 
-use crate::UklientError::MetaError;
+use crate::java::get_java_settings;
 use crate::modpack::get_metadata;
+use crate::UklientError::MetaError;
 use daedalus::modded::LoaderVersion;
 use std::ffi::OsString;
 use tracing::{debug, info, warn};
@@ -14,9 +16,7 @@ use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
 use theseus::auth::Credentials;
-use theseus::data::{
-    JavaSettings, MemorySettings, WindowSize,
-};
+use theseus::data::{MemorySettings, WindowSize};
 use theseus::profile;
 use theseus::profile::Profile;
 use thiserror::Error;
@@ -31,15 +31,7 @@ const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let java_name = if cfg!(windows) { "javaw" } else { "java" };
-    let java_path =
-        PathBuf::from(java_locator::locate_file(java_name)?).join(java_name);
-
-    debug!("Found Java: {java_path:?}");
-    let java = JavaSettings {
-        install: Some(java_path),
-        extra_arguments: None,
-    };
+    let java = get_java_settings().await;
 
     let base_path: PathBuf = HOME.join(".uklient");
     let paths = [&base_path, &base_path.join("mods")];
@@ -191,6 +183,8 @@ pub enum UklientError {
     UnknownTypeError(OsString),
     #[error("acquire error")]
     AcquireError(#[from] tokio::sync::AcquireError),
+    #[error("reqwest error")]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
