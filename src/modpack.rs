@@ -66,7 +66,7 @@ struct LoaderInfo {
 }
 
 impl LoaderInfo {
-    async fn from(value: &String, game_version: &String) -> Result<Self> {
+    async fn from(value: &str, game_version: &String) -> Result<Self> {
         match value.to_ascii_lowercase().as_str() {
             "fabric" => Ok(Self {
                 loader: ModLoader::Fabric,
