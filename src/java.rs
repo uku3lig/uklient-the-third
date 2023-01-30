@@ -35,7 +35,8 @@ pub async fn get_java_settings() -> JavaSettings {
 }
 
 async fn get_latest_java(java_version: u8) -> Result<String> {
-    let pattern = Regex::new(format!(r"{java_version}(?:\.\d+)+-tem").as_str()).unwrap();
+    let pattern =
+        Regex::new(format!(r"{java_version}(?:\.\d+)+-tem").as_str()).unwrap();
     let client = Client::new();
     let url = format!(
         "https://api.sdkman.io/2/candidates/java/{OS}/versions/list?installed="
@@ -93,6 +94,9 @@ async fn download_java() -> Result<PathBuf> {
     let mut archive = Archive::new(tar);
     archive.unpack(&java_dir)?;
 
-    // TODO
-    Ok(java_dir.join("jdk-17.0.6+10").join("bin"))
+    java_dir
+        .read_dir()?
+        .filter_map(|res| res.map(|dir| dir.path().join("bin")).ok())
+        .find(|p| p.is_dir())
+        .ok_or(UklientError::JavaNotFoundError)
 }
