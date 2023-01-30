@@ -34,9 +34,8 @@ pub async fn get_java_settings() -> JavaSettings {
     }
 }
 
-async fn get_latest_java() -> Result<String> {
-    // TODO java 8 support?
-    let pattern = Regex::new(r"17(?:\.\d+)+-tem").unwrap();
+async fn get_latest_java(java_version: u8) -> Result<String> {
+    let pattern = Regex::new(format!(r"{java_version}(?:\.\d+)+-tem").as_str()).unwrap();
     let client = Client::new();
     let url = format!(
         "https://api.sdkman.io/2/candidates/java/{OS}/versions/list?installed="
@@ -58,7 +57,7 @@ async fn download_java() -> Result<PathBuf> {
     }
 
     let client = Client::new();
-    let java_version = get_latest_java().await?;
+    let java_version = get_latest_java(17).await?;
     let download_url = format!(
         "https://api.sdkman.io/2/broker/download/java/{java_version}/{OS}"
     );
