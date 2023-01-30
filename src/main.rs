@@ -185,6 +185,8 @@ pub enum UklientError {
     AcquireError(#[from] tokio::sync::AcquireError),
     #[error("reqwest error")]
     ReqwestError(#[from] reqwest::Error),
+    #[error("java not found")]
+    JavaNotFoundError,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
