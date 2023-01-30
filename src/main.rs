@@ -40,6 +40,8 @@ pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
         .progress_chars("#>-")
 });
 
+const MODPACK_ID: &str = "ukupvp";
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let format = tracing_subscriber::fmt::format().with_target(false);
@@ -50,7 +52,7 @@ async fn main() -> Result<()> {
     let java = get_java_settings(java_version).await;
 
     let metadata =
-        get_metadata("JR0bkFKa", game_version.to_string().as_str()).await?;
+        get_metadata(MODPACK_ID, game_version.to_string().as_str()).await?;
     debug!(
         "Found {} version {:?} on Minecraft {}",
         metadata.loader, metadata.loader_version, game_version
@@ -77,7 +79,7 @@ async fn main() -> Result<()> {
     let cred = connect_account().await?;
     info!("Connected account {}", cred.username);
 
-    modpack::install_modpack(&base_path, "JR0bkFKa", game_version.to_string())
+    modpack::install_modpack(&base_path, MODPACK_ID, game_version.to_string())
         .await?;
     info!("Sucessfully installed modpack");
 
