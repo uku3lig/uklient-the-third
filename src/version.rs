@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use regex::Regex;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MinecraftVersion {
@@ -26,14 +26,21 @@ impl MinecraftVersion {
 
         let mut parts = source.split('.');
 
-        if parts.next().map(|s| s.parse::<u8>().ok()).flatten().filter(|&n| n == 1).is_none() {
-            return Err(VersionError::InvalidVersion("major"));            
+        if parts
+            .next()
+            .map(|s| s.parse::<u8>().ok())
+            .flatten()
+            .filter(|&n| n == 1)
+            .is_none()
+        {
+            return Err(VersionError::InvalidVersion("major"));
         }
 
-        let minor: u8 = match parts.next().map(|s| s.parse::<u8>().ok()).flatten() {
-            Some(n) => n,
-            None => return Err(VersionError::InvalidVersion("minor")),
-        };
+        let minor: u8 =
+            match parts.next().map(|s| s.parse::<u8>().ok()).flatten() {
+                Some(n) => n,
+                None => return Err(VersionError::InvalidVersion("minor")),
+            };
 
         let patch: u8 = match parts.next().map(|s| s.parse::<u8>().ok()) {
             Some(Some(n)) => n,

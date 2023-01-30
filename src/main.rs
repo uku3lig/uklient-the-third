@@ -4,8 +4,8 @@ mod version;
 
 use crate::java::get_java_settings;
 use crate::modpack::get_metadata;
-use crate::UklientError::MetaError;
 use crate::version::MinecraftVersion;
+use crate::UklientError::MetaError;
 use daedalus::modded::LoaderVersion;
 use indicatif::ProgressStyle;
 use std::ffi::OsString;
@@ -13,7 +13,6 @@ use tracing::{debug, info, warn};
 
 use libium::HOME;
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
@@ -30,7 +29,10 @@ type Result<T> = std::result::Result<T, UklientError>;
 
 const FABRIC_META_URL: &str = "https://meta.fabricmc.net/v2";
 const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
-const ONE_SEVENTEEN: MinecraftVersion = MinecraftVersion { minor: 17, patch: 0 };
+const ONE_SEVENTEEN: MinecraftVersion = MinecraftVersion {
+    minor: 17,
+    patch: 0,
+};
 pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
     ProgressStyle::default_bar()
         .template("{bytes_per_sec} [{bar:30}] {bytes}/{total_bytes}")
@@ -47,15 +49,17 @@ async fn main() -> Result<()> {
     let java_version: u8 = if game_version >= ONE_SEVENTEEN { 17 } else { 8 };
     let java = get_java_settings(java_version).await;
 
-    let metadata = get_metadata("JR0bkFKa", game_version.to_string().as_str()).await?;
-    debug!("Found {} version {:?} on Minecraft {}", metadata.loader, metadata.loader_version, game_version);
+    let metadata =
+        get_metadata("JR0bkFKa", game_version.to_string().as_str()).await?;
+    debug!(
+        "Found {} version {:?} on Minecraft {}",
+        metadata.loader, metadata.loader_version, game_version
+    );
 
-    let base_path: PathBuf = HOME.join(".uklient");
-    let paths = [&base_path, &base_path.join("mods")];
-    for path in paths {
-        fs::create_dir_all(path)?;
-        debug!("Created directory {path:?}");
-    }
+    // grr theseus
+    let fixed_name = &metadata.name.replace(' ', "_");
+    let base_path: PathBuf = HOME.join(".uklient").join(fixed_name);
+    tokio::fs::create_dir_all(&base_path).await?;
 
     let mc_profile = Profile {
         path: base_path.clone(),
@@ -73,7 +77,8 @@ async fn main() -> Result<()> {
     let cred = connect_account().await?;
     info!("Connected account {}", cred.username);
 
-    modpack::install_modpack(&base_path, "JR0bkFKa", game_version.to_string()).await?;
+    modpack::install_modpack(&base_path, "JR0bkFKa", game_version.to_string())
+        .await?;
     info!("Sucessfully installed modpack");
 
     let process = profile::run(&base_path, &cred).await?;

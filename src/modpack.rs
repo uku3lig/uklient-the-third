@@ -47,7 +47,7 @@ pub async fn get_metadata(
         };
 
         Ok(ProfileMetadata {
-            name: info.title.clone(),
+            name: format!("{}-{}", info.title, meta.name),
             loader: loader_info.loader,
             loader_version: Some(loader_info.version),
             game_version: game_version.into(),
