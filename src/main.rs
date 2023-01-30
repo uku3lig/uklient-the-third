@@ -1,9 +1,11 @@
 mod java;
 mod modpack;
+mod version;
 
 use crate::java::get_java_settings;
 use crate::modpack::get_metadata;
 use crate::UklientError::MetaError;
+use crate::version::MinecraftVersion;
 use daedalus::modded::LoaderVersion;
 use indicatif::ProgressStyle;
 use std::ffi::OsString;
@@ -28,6 +30,7 @@ type Result<T> = std::result::Result<T, UklientError>;
 
 const FABRIC_META_URL: &str = "https://meta.fabricmc.net/v2";
 const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
+const ONE_SEVENTEEN: MinecraftVersion = MinecraftVersion { minor: 17, patch: 0 };
 pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
     ProgressStyle::default_bar()
         .template("{bytes_per_sec} [{bar:30}] {bytes}/{total_bytes}")
@@ -37,10 +40,15 @@ pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    let format = tracing_subscriber::fmt::format().with_target(false);
+    tracing_subscriber::fmt().event_format(format).init();
 
-    // TODO java version from mc version
-    let java = get_java_settings(17).await;
+    let game_version = MinecraftVersion::parse("1.19.3")?;
+    let java_version: u8 = if game_version >= ONE_SEVENTEEN { 17 } else { 8 };
+    let java = get_java_settings(java_version).await;
+
+    let metadata = get_metadata("JR0bkFKa", game_version.to_string().as_str()).await?;
+    debug!("Found {} version {:?} on Minecraft {}", metadata.loader, metadata.loader_version, game_version);
 
     let base_path: PathBuf = HOME.join(".uklient");
     let paths = [&base_path, &base_path.join("mods")];
@@ -48,10 +56,6 @@ async fn main() -> Result<()> {
         fs::create_dir_all(path)?;
         debug!("Created directory {path:?}");
     }
-
-    let game_version = "1.19.3".to_string();
-    let metadata = get_metadata("JR0bkFKa", game_version.as_str()).await?;
-    debug!("Found {}", metadata.loader);
 
     let mc_profile = Profile {
         path: base_path.clone(),
@@ -69,7 +73,7 @@ async fn main() -> Result<()> {
     let cred = connect_account().await?;
     info!("Connected account {}", cred.username);
 
-    modpack::install_modpack(&base_path, "JR0bkFKa", game_version).await?;
+    modpack::install_modpack(&base_path, "JR0bkFKa", game_version.to_string()).await?;
     info!("Sucessfully installed modpack");
 
     let process = profile::run(&base_path, &cred).await?;
@@ -196,6 +200,8 @@ pub enum UklientError {
     ReqwestError(#[from] reqwest::Error),
     #[error("java not found")]
     JavaNotFoundError,
+    #[error("minecraft version error")]
+    VersionError(#[from] crate::version::VersionError),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
