@@ -20,7 +20,7 @@ pub enum VersionError {
 impl MinecraftVersion {
     pub fn parse(source: &str) -> Result<Self, VersionError> {
         let snapshot_regex = Regex::new(r"\d+w\d{2}[a-z]").unwrap();
-        if let Some(_) = snapshot_regex.find(source) {
+        if snapshot_regex.find(source).is_some() {
             return Err(VersionError::SnapshotsAreUnsupported);
         }
 
@@ -28,19 +28,17 @@ impl MinecraftVersion {
 
         if parts
             .next()
-            .map(|s| s.parse::<u8>().ok())
-            .flatten()
+            .and_then(|s| s.parse::<u8>().ok())
             .filter(|&n| n == 1)
             .is_none()
         {
             return Err(VersionError::InvalidVersion("major"));
         }
 
-        let minor: u8 =
-            match parts.next().map(|s| s.parse::<u8>().ok()).flatten() {
-                Some(n) => n,
-                None => return Err(VersionError::InvalidVersion("minor")),
-            };
+        let minor: u8 = match parts.next().and_then(|s| s.parse::<u8>().ok()) {
+            Some(n) => n,
+            None => return Err(VersionError::InvalidVersion("minor")),
+        };
 
         let patch: u8 = match parts.next().map(|s| s.parse::<u8>().ok()) {
             Some(Some(n)) => n,
