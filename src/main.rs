@@ -39,7 +39,8 @@ pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let java = get_java_settings().await;
+    // TODO java version from mc version
+    let java = get_java_settings(17).await;
 
     let base_path: PathBuf = HOME.join(".uklient");
     let paths = [&base_path, &base_path.join("mods")];

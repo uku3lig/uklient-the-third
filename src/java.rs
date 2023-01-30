@@ -1,6 +1,7 @@
 use crate::{Result, UklientError, STYLE_BYTE};
 use flate2::bufread::GzDecoder;
 use indicatif::ProgressBar;
+use itertools::Itertools;
 use libium::HOME;
 use regex::Regex;
 use reqwest::Client;
@@ -14,17 +15,20 @@ use tokio::fs::{rename, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use tracing::{error, info};
 
-pub async fn get_java_settings() -> JavaSettings {
+pub async fn get_java_settings(java_version: u8) -> JavaSettings {
     let java_name = if cfg!(windows) { "javaw" } else { "java" };
 
     // TODO fork java_locator to look for multiple java versions (cf. prism's implementation of the java locator)
-    // TODO look for already existing installations of java in .config/uklient
-    let java_path = /* if let Ok(java_home) = java_locator::locate_file(java_name)
+    let java_path = if let Some(java_home_path) = find_local_java(java_version)
     {
+        info!("Found uklient Java: {java_home_path:?}");
+        Some(java_home_path.join("bin").join(java_name))
+    } else if let Ok(java_home) = java_locator::locate_file(java_name) {
         info!("Found Java: {java_home:?}");
         Some(PathBuf::from(java_home).join(java_name))
-    } else */ if let Ok(java_home_path) = download_java().await {
-        Some(java_home_path.join(java_name))
+    } else if let Ok(java_bin_path) = download_java(java_version).await {
+        info!("Found downloaded Java: {java_bin_path:?}");
+        Some(java_bin_path.join(java_name))
     } else {
         error!("Could not download java :breh:");
         None
@@ -36,31 +40,13 @@ pub async fn get_java_settings() -> JavaSettings {
     }
 }
 
-async fn get_latest_java(java_version: u8) -> Result<String> {
-    let pattern =
-        Regex::new(format!(r"{java_version}(?:\.\d+)+-tem").as_str()).unwrap();
-    let client = Client::new();
-    let url = format!(
-        "https://api.sdkman.io/2/candidates/java/{OS}/versions/list?installed="
-    );
-
-    let response = client.get(url).send().await?;
-    let content = response.text().await?;
-
-    if let Some(match_) = pattern.find(content.as_str()) {
-        Ok(String::from(match_.as_str()))
-    } else {
-        Err(UklientError::JavaNotFoundError)
-    }
-}
-
-async fn download_java() -> Result<PathBuf> {
+async fn download_java(java_version: u8) -> Result<PathBuf> {
     if !cfg!(unix) {
         todo!("windows bad")
     }
 
     let client = Client::new();
-    let java_version = get_latest_java(17).await?;
+    let java_version = get_latest_java(java_version).await?;
     let download_url = format!(
         "https://api.sdkman.io/2/broker/download/java/{java_version}/{OS}"
     );
@@ -106,4 +92,43 @@ async fn download_java() -> Result<PathBuf> {
         .filter_map(|res| res.map(|dir| dir.path().join("bin")).ok())
         .find(|p| p.is_dir())
         .ok_or(UklientError::JavaNotFoundError)
+}
+
+async fn get_latest_java(java_version: u8) -> Result<String> {
+    let pattern =
+        Regex::new(format!(r"{java_version}(?:\.\d+)+-tem").as_str()).unwrap();
+    let client = Client::new();
+    let url = format!(
+        "https://api.sdkman.io/2/candidates/java/{OS}/versions/list?installed="
+    );
+
+    let response = client.get(url).send().await?;
+    let content = response.text().await?;
+
+    if let Some(match_) = pattern.find(content.as_str()) {
+        Ok(String::from(match_.as_str()))
+    } else {
+        Err(UklientError::JavaNotFoundError)
+    }
+}
+
+fn find_local_java(java_version: u8) -> Option<PathBuf> {
+    let uklient_dir = HOME.join(".config").join("uklient");
+    let pattern =
+        Regex::new(format!(r"jdk-{java_version}(?:\.\d+)+(?:\+\d+)?").as_str())
+            .unwrap();
+
+    if let Ok(dir) = uklient_dir.read_dir() {
+        let java_name = dir
+            .filter_map(|res| res.ok())
+            .filter_map(|e| e.path().file_name().map(|s| s.to_os_string()))
+            .filter(|n| pattern.find(&n.to_string_lossy()).is_some())
+            .sorted()
+            .rev()
+            .next();
+
+        java_name.map(|name| uklient_dir.join(name))
+    } else {
+        None
+    }
 }

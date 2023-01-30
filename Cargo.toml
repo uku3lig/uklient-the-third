@@ -9,7 +9,7 @@ lto = true
 
 [dependencies]
 thiserror = "1.0"
-# TODO use dedalus only
+# TODO use dedalus only or at least write my own auth system
 theseus = { git = "https://github.com/uku3lig/theseus" }
 daedalus = "0.1.17"
 java-locator = "0.1"
