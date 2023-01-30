@@ -1,10 +1,12 @@
-use crate::{Result, UklientError};
+use crate::{Result, UklientError, STYLE_BYTE};
 use flate2::bufread::GzDecoder;
+use indicatif::ProgressBar;
 use libium::HOME;
 use regex::Regex;
 use reqwest::Client;
 use std::env::consts::OS;
 use std::fs::File;
+use std::time::Duration;
 use std::{io::BufReader, path::PathBuf};
 use tar::Archive;
 use theseus::profile::JavaSettings;
@@ -17,11 +19,11 @@ pub async fn get_java_settings() -> JavaSettings {
 
     // TODO fork java_locator to look for multiple java versions (cf. prism's implementation of the java locator)
     // TODO look for already existing installations of java in .config/uklient
-    let java_path = if let Ok(java_home) = java_locator::locate_file(java_name)
+    let java_path = /* if let Ok(java_home) = java_locator::locate_file(java_name)
     {
         info!("Found Java: {java_home:?}");
         Some(PathBuf::from(java_home).join(java_name))
-    } else if let Ok(java_home_path) = download_java().await {
+    } else */ if let Ok(java_home_path) = download_java().await {
         Some(java_home_path.join(java_name))
     } else {
         error!("Could not download java :breh:");
@@ -81,12 +83,17 @@ async fn download_java() -> Result<PathBuf> {
         .await?;
 
     info!("Downloading Java {java_version}");
+    let progress_bar = ProgressBar::new(response.content_length().unwrap_or(0))
+        .with_style(STYLE_BYTE.clone());
+    progress_bar.enable_steady_tick(Duration::from_millis(100));
 
     while let Some(chunk) = response.chunk().await? {
         temp_file.write_all(&chunk).await?;
+        progress_bar.inc(chunk.len() as u64);
     }
     rename(&temp_file_path, &out_file_path).await?;
 
+    progress_bar.finish();
     info!("Finished downloading Java!");
 
     let reader = BufReader::new(File::open(&out_file_path)?);

@@ -5,6 +5,7 @@ use crate::java::get_java_settings;
 use crate::modpack::get_metadata;
 use crate::UklientError::MetaError;
 use daedalus::modded::LoaderVersion;
+use indicatif::ProgressStyle;
 use std::ffi::OsString;
 use tracing::{debug, info, warn};
 
@@ -15,6 +16,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
+use once_cell::sync::Lazy;
 use theseus::auth::Credentials;
 use theseus::data::{MemorySettings, WindowSize};
 use theseus::profile;
@@ -26,6 +28,12 @@ type Result<T> = std::result::Result<T, UklientError>;
 
 const FABRIC_META_URL: &str = "https://meta.fabricmc.net/v2";
 const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
+pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
+    ProgressStyle::default_bar()
+        .template("{bytes_per_sec} [{bar:30}] {bytes}/{total_bytes}")
+        .expect("Progess bar template parse failure")
+        .progress_chars("#>-")
+});
 
 #[tokio::main]
 async fn main() -> Result<()> {
