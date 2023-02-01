@@ -2,11 +2,12 @@ use crate::{Result, UklientError, STYLE_BYTE};
 use flate2::bufread::GzDecoder;
 use indicatif::ProgressBar;
 use itertools::Itertools;
+use libium::modpack::extract_zip;
 use libium::HOME;
 use regex::Regex;
 use reqwest::Client;
-use serde::{Serialize, Deserialize};
-use std::env::consts::{OS, ARCH};
+use serde::{Deserialize, Serialize};
+use std::env::consts::{ARCH, OS};
 use std::fs::File;
 use std::time::Duration;
 use std::{io::BufReader, path::PathBuf};
@@ -42,10 +43,6 @@ pub async fn get_java_settings(java_version: u8) -> JavaSettings {
 }
 
 async fn download_java(java_version: u8) -> Result<PathBuf> {
-    if !cfg!(unix) {
-        todo!("windows bad")
-    }
-
     let client = Client::new();
     let java_version = get_latest_java(java_version).await?;
     let download_url = format!(
@@ -56,10 +53,12 @@ async fn download_java(java_version: u8) -> Result<PathBuf> {
     let java_dir = HOME.join(".config").join("uklient");
 
     let mut response = client.get(download_url).send().await?;
-    // TODO this is platform specific
+
+    let extension = if cfg!(windows) { "zip" } else { "tar.gz" };
     let out_file_path = tmp_dir
         .join(java_version.replace('.', "-"))
-        .with_extension("tar.gz");
+        .with_extension(extension);
+
     let temp_file_path = out_file_path.with_extension("part");
     let mut temp_file = OpenOptions::new()
         .read(true)
@@ -83,10 +82,17 @@ async fn download_java(java_version: u8) -> Result<PathBuf> {
     progress_bar.finish();
     info!("Finished downloading Java!");
 
-    let reader = BufReader::new(File::open(&out_file_path)?);
-    let tar = GzDecoder::new(reader);
-    let mut archive = Archive::new(tar);
-    archive.unpack(&java_dir)?;
+    let file = File::open(&out_file_path)?;
+    if cfg!(windows) {
+        extract_zip(file, &java_dir)
+            .await
+            .map_err(|_| UklientError::ZipError)?;
+    } else {
+        let reader = BufReader::new(file);
+        let tar = GzDecoder::new(reader);
+        let mut archive = Archive::new(tar);
+        archive.unpack(&java_dir)?;
+    }
 
     java_dir
         .read_dir()?
@@ -105,7 +111,11 @@ async fn get_latest_java(java_version: u8) -> Result<String> {
     let response = client.get(url).send().await?;
     let content: ReleaseNames = response.json().await?;
 
-    content.releases.first().map(|s| s.clone()).ok_or(UklientError::JavaNotFoundError)
+    content
+        .releases
+        .first()
+        .map(|s| s.clone())
+        .ok_or(UklientError::JavaNotFoundError)
 }
 
 fn find_local_java(java_version: u8) -> Option<PathBuf> {
@@ -131,5 +141,5 @@ fn find_local_java(java_version: u8) -> Option<PathBuf> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ReleaseNames {
-    releases: Vec<String>
+    releases: Vec<String>,
 }
