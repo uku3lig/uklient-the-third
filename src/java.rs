@@ -5,7 +5,8 @@ use itertools::Itertools;
 use libium::HOME;
 use regex::Regex;
 use reqwest::Client;
-use std::env::consts::OS;
+use serde::{Serialize, Deserialize};
+use std::env::consts::{OS, ARCH};
 use std::fs::File;
 use std::time::Duration;
 use std::{io::BufReader, path::PathBuf};
@@ -48,7 +49,7 @@ async fn download_java(java_version: u8) -> Result<PathBuf> {
     let client = Client::new();
     let java_version = get_latest_java(java_version).await?;
     let download_url = format!(
-        "https://api.sdkman.io/2/broker/download/java/{java_version}/{OS}"
+        "https://api.adoptium.net/v3/binary/version/{java_version}/{OS}/{ARCH}/jdk/hotspot/normal/eclipse"
     );
 
     let tmp_dir = HOME.join(".config").join("uklient").join(".tmp");
@@ -95,21 +96,16 @@ async fn download_java(java_version: u8) -> Result<PathBuf> {
 }
 
 async fn get_latest_java(java_version: u8) -> Result<String> {
-    let pattern =
-        Regex::new(format!(r"{java_version}(?:\.\d+)+-tem").as_str()).unwrap();
     let client = Client::new();
     let url = format!(
-        "https://api.sdkman.io/2/candidates/java/{OS}/versions/list?installed="
+        "https://api.adoptium.net/v3/info/release_names?project=jdk&release_type=ga&version=[{java_version},{})",
+        java_version+1
     );
 
     let response = client.get(url).send().await?;
-    let content = response.text().await?;
+    let content: ReleaseNames = response.json().await?;
 
-    if let Some(match_) = pattern.find(content.as_str()) {
-        Ok(String::from(match_.as_str()))
-    } else {
-        Err(UklientError::JavaNotFoundError)
-    }
+    content.releases.first().map(|s| s.clone()).ok_or(UklientError::JavaNotFoundError)
 }
 
 fn find_local_java(java_version: u8) -> Option<PathBuf> {
@@ -131,4 +127,9 @@ fn find_local_java(java_version: u8) -> Option<PathBuf> {
     } else {
         None
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReleaseNames {
+    releases: Vec<String>
 }
