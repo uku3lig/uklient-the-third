@@ -9,12 +9,15 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::env::consts::{ARCH, OS};
 use std::fs::File;
+use std::ops::Deref;
+use std::path::Path;
 use std::time::Duration;
 use std::{io::BufReader, path::PathBuf};
 use tar::Archive;
 use theseus::profile::JavaSettings;
 use tokio::fs::{rename, OpenOptions};
 use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
 use tracing::{error, info};
 
 pub async fn get_java_settings(java_version: u8) -> JavaSettings {
@@ -35,6 +38,10 @@ pub async fn get_java_settings(java_version: u8) -> JavaSettings {
         error!("Could not download java :breh:");
         None
     };
+
+    if let Some(p) = java_path.clone() {
+        info!("Java version: {}", find_java_version(&p).await.unwrap_or(0));
+    }
 
     JavaSettings {
         install: java_path,
@@ -136,6 +143,37 @@ fn find_local_java(java_version: u8) -> Option<PathBuf> {
         java_name.map(|name| uklient_dir.join(name))
     } else {
         None
+    }
+}
+
+async fn find_java_version(exec_path: &Path) -> Result<u8> {
+    let regex = Regex::new(r#"version "(\d+\.\d+\.\d+)(?:_\d+)?""#).unwrap();
+
+    let mut command = Command::new(exec_path.as_os_str());
+    command.arg("-version");
+
+    let output = command.output().await?;
+    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+    text.push_str(String::from_utf8_lossy(&output.stderr).deref());
+
+    if let Some(version) = regex.captures(text.as_str()).and_then(|c| c.get(1))
+    {
+        let mut parts = version.as_str().split('.');
+        let major = parts
+            .next()
+            .and_then(|s| s.parse::<u8>().ok())
+            .ok_or(UklientError::MetaError("java major"))?;
+
+        match major {
+            0 => Err(UklientError::MetaError("java major")),
+            1 => match parts.next().and_then(|s| s.parse::<u8>().ok()) {
+                Some(n) => Ok(n),
+                None => Err(UklientError::MetaError("java minor")),
+            },
+            v => Ok(v),
+        }
+    } else {
+        Err(UklientError::MetaError("java version not found"))
     }
 }
 
