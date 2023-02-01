@@ -114,7 +114,7 @@ async fn get_latest_java(java_version: u8) -> Result<String> {
     content
         .releases
         .first()
-        .map(|s| s.clone())
+        .cloned()
         .ok_or(UklientError::JavaNotFoundError)
 }
 
