@@ -24,23 +24,35 @@ pub async fn get_java_settings(java_version: u8) -> JavaSettings {
     let java_name = if cfg!(windows) { "javaw" } else { "java" };
 
     // TODO fork java_locator to look for multiple java versions (cf. prism's implementation of the java locator)
-    let java_path = if let Some(java_home_path) = find_local_java(java_version)
+    let mut java_path =
+        if let Some(java_home_path) = find_local_java(java_version) {
+            info!("Found uklient Java: {java_home_path:?}");
+            Some(java_home_path.join("bin").join(java_name))
+        } else if let Ok(java_home) = java_locator::locate_file(java_name) {
+            info!("Found Java: {java_home:?}");
+            Some(PathBuf::from(java_home).join(java_name))
+        } else {
+            None
+        };
+
+    if java_path.is_none()
+        || get_java_version(&java_path.clone().unwrap())
+            .await
+            .unwrap_or(0)
+            != java_version
     {
-        info!("Found uklient Java: {java_home_path:?}");
-        Some(java_home_path.join("bin").join(java_name))
-    } else if let Ok(java_home) = java_locator::locate_file(java_name) {
-        info!("Found Java: {java_home:?}");
-        Some(PathBuf::from(java_home).join(java_name))
-    } else if let Ok(java_bin_path) = download_java(java_version).await {
-        info!("Found downloaded Java: {java_bin_path:?}");
-        Some(java_bin_path.join(java_name))
-    } else {
-        error!("Could not download java :breh:");
-        None
-    };
+        java_path = if let Ok(java_bin_path) = download_java(java_version).await
+        {
+            info!("Found downloaded Java: {java_bin_path:?}");
+            Some(java_bin_path.join(java_name))
+        } else {
+            error!("Could not download java :breh:");
+            None
+        };
+    }
 
     if let Some(p) = java_path.clone() {
-        info!("Java version: {}", find_java_version(&p).await.unwrap_or(0));
+        info!("Java version: {}", get_java_version(&p).await.unwrap_or(0));
     }
 
     JavaSettings {
@@ -146,7 +158,7 @@ fn find_local_java(java_version: u8) -> Option<PathBuf> {
     }
 }
 
-async fn find_java_version(exec_path: &Path) -> Result<u8> {
+async fn get_java_version(exec_path: &Path) -> Result<u8> {
     let regex = Regex::new(r#"version "(\d+\.\d+\.\d+)(?:_\d+)?""#).unwrap();
 
     let mut command = Command::new(exec_path.as_os_str());
