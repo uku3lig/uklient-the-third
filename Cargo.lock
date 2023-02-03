@@ -2073,7 +2073,7 @@ dependencies = [
 [[package]]
 name = "theseus"
 version = "0.1.0"
-source = "git+https://github.com/uku3lig/theseus#c456287f892690d67024c1b54078d14d1eb1b70f"
+source = "git+https://github.com/uku3lig/theseus#cff01ca1bdc8339144f1e0cdf8cc57c6892f4c6b"
 dependencies = [
  "async-tungstenite",
  "bincode",

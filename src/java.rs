@@ -21,7 +21,7 @@ use tokio::process::Command;
 use tracing::{error, info};
 
 pub async fn get_java_settings(java_version: u8) -> JavaSettings {
-    let java_name = if cfg!(windows) { "javaw" } else { "java" };
+    let java_name = if cfg!(windows) { "javaw.exe" } else { "java" };
 
     // TODO fork java_locator to look for multiple java versions (cf. prism's implementation of the java locator)
     let mut java_path =
