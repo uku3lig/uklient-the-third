@@ -41,13 +41,15 @@ pub async fn get_java_settings(java_version: u8) -> JavaSettings {
             .unwrap_or(0)
             != java_version
     {
-        java_path = if let Ok(java_bin_path) = download_java(java_version).await
-        {
-            info!("Found downloaded Java: {java_bin_path:?}");
-            Some(java_bin_path.join(java_name))
-        } else {
-            error!("Could not download java :breh:");
-            None
+        java_path = match download_java(java_version).await {
+            Ok(java_bin_path) => {
+                info!("Found downloaded Java: {java_bin_path:?}");
+                Some(java_bin_path.join(java_name))
+            },
+            Err(e) => {
+                error!("Error while downloading java: {e}");
+                None
+            }
         };
     }
 
