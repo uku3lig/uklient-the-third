@@ -6,6 +6,7 @@ use crate::java::get_java_settings;
 use crate::modpack::get_metadata;
 use crate::version::MinecraftVersion;
 use crate::UklientError::MetaError;
+use clap::Parser;
 use daedalus::modded::LoaderVersion;
 use indicatif::ProgressStyle;
 use std::ffi::OsString;
@@ -40,19 +41,25 @@ pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
         .progress_chars("#>-")
 });
 
-const MODPACK_ID: &str = "ukupvp";
+#[derive(Debug, Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(long, default_value_t = String::from("ukupvp"))]
+    modpack_id: String
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let format = tracing_subscriber::fmt::format().with_target(false);
     tracing_subscriber::fmt().event_format(format).init();
+    let args = Args::parse();
 
     let game_version = MinecraftVersion::parse("1.19.3")?;
     let java_version: u8 = if game_version >= ONE_SEVENTEEN { 17 } else { 8 };
     let java = get_java_settings(java_version).await;
 
     let metadata =
-        get_metadata(MODPACK_ID, game_version.to_string().as_str()).await?;
+        get_metadata(&args.modpack_id, game_version.to_string().as_str()).await?;
     debug!(
         "Found {} version {:?} on Minecraft {}",
         metadata.loader, metadata.loader_version, game_version
@@ -79,7 +86,7 @@ async fn main() -> Result<()> {
     let cred = connect_account().await?;
     info!("Connected account {}", cred.username);
 
-    modpack::install_modpack(&base_path, MODPACK_ID, game_version.to_string())
+    modpack::install_modpack(&base_path, &args.modpack_id, game_version.to_string())
         .await?;
     info!("Sucessfully installed modpack");
 
