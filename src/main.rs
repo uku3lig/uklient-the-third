@@ -44,8 +44,12 @@ pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(long, default_value_t = String::from("ukupvp"))]
-    modpack_id: String
+    #[arg(long, default_value_t = String::from("ukupvp"), help = "specify the modpack to be downloaded")]
+    modpack_id: String,
+    #[arg(long, help = "always download java when launching")]
+    force_java_download: bool,
+    #[arg(long, help = "don't launch the game, only install the modpack")]
+    no_launch: bool,
 }
 
 #[tokio::main]
@@ -56,10 +60,11 @@ async fn main() -> Result<()> {
 
     let game_version = MinecraftVersion::parse("1.19.3")?;
     let java_version: u8 = if game_version >= ONE_SEVENTEEN { 17 } else { 8 };
-    let java = get_java_settings(java_version).await;
+    let java = get_java_settings(java_version, args.force_java_download).await;
 
     let metadata =
-        get_metadata(&args.modpack_id, game_version.to_string().as_str()).await?;
+        get_metadata(&args.modpack_id, game_version.to_string().as_str())
+            .await?;
     debug!(
         "Found {} version {:?} on Minecraft {}",
         metadata.loader, metadata.loader_version, game_version
@@ -86,9 +91,17 @@ async fn main() -> Result<()> {
     let cred = connect_account().await?;
     info!("Connected account {}", cred.username);
 
-    modpack::install_modpack(&base_path, &args.modpack_id, game_version.to_string())
-        .await?;
+    modpack::install_modpack(
+        &base_path,
+        &args.modpack_id,
+        game_version.to_string(),
+    )
+    .await?;
     info!("Sucessfully installed modpack");
+
+    if args.no_launch {
+        return Ok(());
+    }
 
     let process = profile::run(&base_path, &cred).await?;
     if let Some(pid) = process.id() {

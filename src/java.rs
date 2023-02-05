@@ -20,7 +20,10 @@ use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tracing::{error, info};
 
-pub async fn get_java_settings(java_version: u8) -> JavaSettings {
+pub async fn get_java_settings(
+    java_version: u8,
+    force_download: bool,
+) -> JavaSettings {
     let java_name = if cfg!(windows) { "javaw.exe" } else { "java" };
 
     // TODO fork java_locator to look for multiple java versions (cf. prism's implementation of the java locator)
@@ -35,7 +38,8 @@ pub async fn get_java_settings(java_version: u8) -> JavaSettings {
             None
         };
 
-    if java_path.is_none()
+    if force_download
+        || java_path.is_none()
         || get_java_version(&java_path.clone().unwrap())
             .await
             .unwrap_or(0)
@@ -45,7 +49,7 @@ pub async fn get_java_settings(java_version: u8) -> JavaSettings {
             Ok(java_bin_path) => {
                 info!("Found downloaded Java: {java_bin_path:?}");
                 Some(java_bin_path.join(java_name))
-            },
+            }
             Err(e) => {
                 error!("Error while downloading java: {e}");
                 None
