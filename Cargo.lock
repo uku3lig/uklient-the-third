@@ -2369,7 +2369,6 @@ dependencies = [
  "ferinth",
  "flate2",
  "fs_extra",
- "home",
  "indicatif",
  "itertools",
  "java-locator",
