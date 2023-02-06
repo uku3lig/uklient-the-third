@@ -1,5 +1,5 @@
 use crate::UklientError::{MetaError, UnknownTypeError, ZipError};
-use crate::{get_latest_fabric, get_latest_quilt, Result, UklientError};
+use crate::{get_latest_fabric, get_latest_quilt, Result, UklientError, CLIENT};
 use daedalus::modded::LoaderVersion;
 use ferinth::Ferinth;
 use fs_extra::{
@@ -13,7 +13,6 @@ use libium::modpack::modrinth::read_metadata_file;
 use libium::upgrade::Downloadable;
 use libium::version_ext::VersionExt;
 use libium::HOME;
-use reqwest::Client;
 use std::fs::File;
 use std::{
     ffi::OsString,
@@ -109,7 +108,7 @@ pub async fn install_modpack(
     let modpack_path = cache_dir.join(&version_file.output);
     if !modpack_path.exists() {
         version_file
-            .download(&Client::new(), &cache_dir, |_| {})
+            .download(&CLIENT, &cache_dir, |_| {})
             .await?;
     }
 
@@ -220,16 +219,14 @@ async fn download(
     create_dir_all(&*output_dir).await?;
     let mut tasks = JoinSet::new();
     let semaphore = Arc::new(Semaphore::new(75));
-    let client = Arc::new(Client::new());
     let output_dir = Arc::new(output_dir);
     for downloadable in to_download {
         let permit = semaphore.clone().acquire_owned().await?;
         let output_dir = output_dir.clone();
-        let client = client.clone();
         tasks.spawn(async move {
             let _permit = permit;
             info!("Downloading {}", downloadable.filename());
-            downloadable.download(&client, &output_dir, |_| {}).await?;
+            downloadable.download(&CLIENT, &output_dir, |_| {}).await?;
             Ok::<(), UklientError>(())
         });
     }

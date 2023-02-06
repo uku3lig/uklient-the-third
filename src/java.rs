@@ -1,11 +1,10 @@
-use crate::{Result, UklientError, STYLE_BYTE};
+use crate::{Result, UklientError, STYLE_BYTE, CLIENT};
 use flate2::bufread::GzDecoder;
 use indicatif::ProgressBar;
 use itertools::Itertools;
 use libium::modpack::extract_zip;
 use libium::HOME;
 use regex::Regex;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::env::consts::{ARCH, OS};
 use std::fs::File;
@@ -68,7 +67,6 @@ pub async fn get_java_settings(
 }
 
 async fn download_java(java_version: u8) -> Result<PathBuf> {
-    let client = Client::new();
     let java_version = get_latest_java(java_version).await?;
     let download_url = format!(
         "https://api.adoptium.net/v3/binary/version/{java_version}/{OS}/{ARCH}/jdk/hotspot/normal/eclipse"
@@ -77,7 +75,7 @@ async fn download_java(java_version: u8) -> Result<PathBuf> {
     let tmp_dir = HOME.join(".config").join("uklient").join(".tmp");
     let java_dir = HOME.join(".config").join("uklient");
 
-    let mut response = client.get(download_url).send().await?;
+    let mut response = CLIENT.get(download_url).send().await?;
 
     let extension = if cfg!(windows) { "zip" } else { "tar.gz" };
     let out_file_path = tmp_dir
@@ -127,13 +125,12 @@ async fn download_java(java_version: u8) -> Result<PathBuf> {
 }
 
 async fn get_latest_java(java_version: u8) -> Result<String> {
-    let client = Client::new();
     let url = format!(
         "https://api.adoptium.net/v3/info/release_names?project=jdk&release_type=ga&version=[{java_version},{})",
         java_version+1
     );
 
-    let response = client.get(url).send().await?;
+    let response = CLIENT.get(url).send().await?;
     let content: ReleaseNames = response.json().await?;
 
     content

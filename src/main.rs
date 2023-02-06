@@ -9,6 +9,7 @@ use crate::UklientError::MetaError;
 use clap::Parser;
 use daedalus::modded::LoaderVersion;
 use indicatif::ProgressStyle;
+use reqwest::Client;
 use std::ffi::OsString;
 use tracing::{debug, info, warn};
 
@@ -40,6 +41,7 @@ pub static STYLE_BYTE: Lazy<ProgressStyle> = Lazy::new(|| {
         .expect("Progess bar template parse failure")
         .progress_chars("#>-")
 });
+pub static CLIENT: Lazy<Client> = Lazy::new(Client::new);
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
