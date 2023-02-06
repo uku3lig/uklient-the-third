@@ -191,7 +191,7 @@ async fn get_java_version(exec_path: &Path) -> Result<u8> {
             v => Ok(v),
         }
     } else {
-        Err(UklientError::MetaError("java version not found"))
+        Err(UklientError::MetaError("java"))
     }
 }
 

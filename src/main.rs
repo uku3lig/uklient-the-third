@@ -193,41 +193,41 @@ async fn connect_account() -> Result<Credentials> {
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum UklientError {
-    #[error("Java could not be located")]
+    #[error("Java could not be located: {0}")]
     JavaLocateError(#[from] java_locator::errors::JavaLocatorError),
-    #[error("tokio recv error")]
+    #[error("tokio recv error: {0}")]
     RecvError(#[from] oneshot::error::RecvError),
-    #[error("browser error :3")]
+    #[error("io error: {0}")]
     IoError(#[from] std::io::Error),
-    #[error("fs_extra error")]
+    #[error("fs_extra error: {0}")]
     FsExtraError(#[from] fs_extra::error::Error),
-    #[error("tokio join error")]
+    #[error("tokio join error: {0}")]
     JoinError(#[from] tokio::task::JoinError),
-    #[error("theseus error")]
+    #[error("theseus error: {0}")]
     TheseusError(#[from] theseus::Error),
-    #[error("daedalus error")]
+    #[error("daedalus error: {0}")]
     DaedalusError(#[from] daedalus::Error),
-    #[error("json error")]
+    #[error("json error: {0}")]
     JsonError(#[from] serde_json::Error),
-    #[error("libium error")]
+    #[error("libium error: {0}")]
     LibiumError(#[from] libium::upgrade::Error),
-    #[error("libium modpack error")]
+    #[error("libium modpack error: {0}")]
     LibiumModpackError(#[from] libium::upgrade::modpack_downloadable::Error),
-    #[error("ferinth error")]
+    #[error("ferinth error: {0}")]
     FerinthError(#[from] ferinth::Error),
     #[error("zip error")]
     ZipError,
-    #[error("no {0} versions were found")]
+    #[error("{0} version not found")]
     MetaError(&'static str),
-    #[error("unknown type")]
+    #[error("unknown type: {0:?}")]
     UnknownTypeError(OsString),
-    #[error("acquire error")]
+    #[error("tokio acquire error: {0}")]
     AcquireError(#[from] tokio::sync::AcquireError),
-    #[error("reqwest error")]
+    #[error("reqwest error: {0}")]
     ReqwestError(#[from] reqwest::Error),
     #[error("java not found")]
     JavaNotFoundError,
-    #[error("minecraft version error")]
+    #[error("minecraft version error: {0}")]
     VersionError(#[from] crate::version::VersionError),
 }
 

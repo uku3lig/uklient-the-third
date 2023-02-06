@@ -43,7 +43,7 @@ pub async fn get_metadata(
     if let Some(meta) = versions.first() {
         let loader_info = match meta.loaders.first() {
             Some(l) => LoaderInfo::from(l, &game_version.into()).await?,
-            None => return Err(MetaError("loader not found")),
+            None => return Err(MetaError("loader")),
         };
 
         Ok(ProfileMetadata {
@@ -55,7 +55,7 @@ pub async fn get_metadata(
             icon: None,
         })
     } else {
-        Err(MetaError("modpack not found"))
+        Err(MetaError("modpack"))
     }
 }
 
