@@ -1,11 +1,14 @@
+mod auth;
 mod java;
 mod modpack;
 mod version;
 
+use crate::auth::get_credentials;
 use crate::java::get_java_settings;
 use crate::modpack::get_metadata;
 use crate::version::MinecraftVersion;
 use crate::UklientError::MetaError;
+use auth::get_device_code;
 use clap::Parser;
 use daedalus::modded::LoaderVersion;
 use indicatif::ProgressStyle;
@@ -179,13 +182,14 @@ async fn connect_account() -> Result<Credentials> {
         }
     }
 
-    let (tx, rx) = oneshot::channel::<url::Url>();
-    let flow = tokio::spawn(theseus::auth::authenticate(tx));
+    let scopes = vec!["XboxLive.signin", "offline_access"];
+    let code = get_device_code(scopes).await?;
+    warn!(
+        "No account was found, please go to {} and enter the code {}",
+        code.verification_uri, code.user_code
+    );
 
-    let url = rx.await?;
-    webbrowser::open(url.as_str())?;
-
-    let creds = flow.await??;
+    let creds = get_credentials(code.device_code).await?;
     let file = File::create(credentials_path)?;
     serde_json::to_writer(BufWriter::new(file), &creds)?;
 
@@ -231,6 +235,10 @@ pub enum UklientError {
     JavaNotFoundError,
     #[error("minecraft version error: {0}")]
     VersionError(#[from] crate::version::VersionError),
+    #[error("url parse error: {0}")]
+    UrlParseError(#[from] url::ParseError),
+    #[error("login error: {0}")]
+    LoginError(String),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

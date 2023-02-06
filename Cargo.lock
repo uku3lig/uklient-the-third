@@ -2079,7 +2079,7 @@ dependencies = [
 [[package]]
 name = "theseus"
 version = "0.1.0"
-source = "git+https://github.com/uku3lig/theseus#cff01ca1bdc8339144f1e0cdf8cc57c6892f4c6b"
+source = "git+https://github.com/uku3lig/theseus#c743dfe5095e76baf6cfce41dffed7ba9483d38f"
 dependencies = [
  "async-tungstenite",
  "bincode",
@@ -2364,6 +2364,7 @@ checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
 name = "uklient-rs"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "daedalus",
  "ferinth",
@@ -2385,6 +2386,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "uuid",
  "webbrowser",
 ]
 
