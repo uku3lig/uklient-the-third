@@ -1,5 +1,7 @@
 use crate::UklientError::{MetaError, UnknownTypeError, ZipError};
-use crate::{get_latest_fabric, get_latest_quilt, Result, UklientError, CLIENT};
+use crate::{
+    get_latest_fabric, get_latest_quilt, Result, UklientError, CLIENT,
+};
 use daedalus::modded::LoaderVersion;
 use ferinth::Ferinth;
 use fs_extra::{
@@ -107,9 +109,7 @@ pub async fn install_modpack(
 
     let modpack_path = cache_dir.join(&version_file.output);
     if !modpack_path.exists() {
-        version_file
-            .download(&CLIENT, &cache_dir, |_| {})
-            .await?;
+        version_file.download(&CLIENT, &cache_dir, |_| {}).await?;
     }
 
     let modpack_file = File::open(modpack_path)?;

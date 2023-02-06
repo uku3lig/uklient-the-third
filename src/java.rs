@@ -1,4 +1,4 @@
-use crate::{Result, UklientError, STYLE_BYTE, CLIENT};
+use crate::{Result, UklientError, CLIENT, STYLE_BYTE};
 use flate2::bufread::GzDecoder;
 use indicatif::ProgressBar;
 use itertools::Itertools;
