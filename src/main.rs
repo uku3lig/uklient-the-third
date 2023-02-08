@@ -3,7 +3,7 @@ mod java;
 mod modpack;
 mod version;
 
-use crate::auth::get_credentials;
+use crate::auth::{get_credentials, refresh_credentials};
 use crate::java::get_java_settings;
 use crate::modpack::get_metadata;
 use crate::version::MinecraftVersion;
@@ -174,7 +174,7 @@ async fn connect_account() -> Result<Credentials> {
             let creds: Credentials =
                 serde_json::from_reader(BufReader::new(file))?;
 
-            Ok(theseus::auth::refresh(creds.id, true).await?)
+            refresh_credentials(creds).await
         };
 
         if let Ok(creds) = credentials {

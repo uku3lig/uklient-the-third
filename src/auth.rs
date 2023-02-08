@@ -198,6 +198,34 @@ async fn get_yggdrasil_token(token: &XboxTokenInfo) -> Result<YggdrasilToken> {
         .await?)
 }
 
+pub async fn refresh_credentials(creds: Credentials) -> Result<Credentials> {
+    let body = [
+        ("client_id", CLIENT_ID),
+        ("refresh_token", &creds.refresh_token),
+        ("grant_type", "refresh_token"),
+    ];
+
+    let response = CLIENT
+        .post(TOKEN_URL)
+        .form(&body)
+        .send()
+        .await?
+        .error_for_status()?;
+    let token: Token = response.json().await?;
+
+    let expiration = Utc::now() + Duration::seconds(token.expires_in);
+    let info = fetch_info(&token.access_token).await?;
+
+    Ok(Credentials {
+        username: info.name,
+        id: info.id,
+        refresh_token: token.refresh_token,
+        access_token: token.access_token,
+        expires: expiration,
+        _ctor_scope: std::marker::PhantomData,
+    })
+}
+
 // flow:
 // 1. get device code
 // 2. get xbox user token
