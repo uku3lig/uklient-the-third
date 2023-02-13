@@ -2079,7 +2079,7 @@ dependencies = [
 [[package]]
 name = "theseus"
 version = "0.1.0"
-source = "git+https://github.com/uku3lig/theseus#c743dfe5095e76baf6cfce41dffed7ba9483d38f"
+source = "git+https://git.uku3lig.net/uku/theseus#0753d457d26724a3de003cdc60263f44f581dcb7"
 dependencies = [
  "async-tungstenite",
  "bincode",
@@ -2088,6 +2088,7 @@ dependencies = [
  "daedalus",
  "dirs",
  "futures",
+ "indicatif",
  "log",
  "once_cell",
  "regex",

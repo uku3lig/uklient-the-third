@@ -9,7 +9,7 @@ lto = true
 
 [dependencies]
 # TODO use dedalus only or at least write my own auth system
-theseus = { git = "https://github.com/uku3lig/theseus" }
+theseus = { git = "https://git.uku3lig.net/uku/theseus" }
 daedalus = "0.1.17"
 java-locator = "0.1"
 libium = "1.22"
